@@ -1,0 +1,6 @@
+fastapi
+celery
+qiskit
+qiskit-aer
+redis
+prometheus_client

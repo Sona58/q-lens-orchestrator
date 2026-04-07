@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: q-stream-worker
+  labels:
+    app: quantum-worker
+spec:
+  replicas: 2  # We start with 2 for high-concurrency testing
+  selector:
+    matchLabels:
+      app: quantum-worker
+  template:
+    metadata:
+      labels:
+        app: quantum-worker
+    spec:
+      containers:
+      - name: qiskit-worker
+        image: quantum-kube-worker:test  # Matches our CI tag
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CELERY_BROKER_URL
+          value: "redis://redis-service:6379/0"
+        - name: CELERY_RESULT_BACKEND
+          value: "redis://redis-service:6379/0"
+        - name: IBM_QUANTUM_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: quantum-api-key
+              key: IBM_TOKEN
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"  # Quantum simulations are RAM-heavy

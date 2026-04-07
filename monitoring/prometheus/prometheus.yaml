@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s # How often to check the API
+
+scrape_configs:
+  - job_name: 'quantum-api'
+    static_configs:
+      - targets: ['api:8080'] # This points to your API container
+
+  - job_name: 'quantum-worker'
+    static_configs:
+      - targets: ['worker:8000'] # If you add metrics to the worker too

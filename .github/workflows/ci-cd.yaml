@@ -1,0 +1,104 @@
+name: Q-Lens CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Start Minikube
+      uses: medyagh/setup-minikube@master
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies for testing
+      run: |
+        # Install all requirements from both folders plus testing tools
+        pip install pytest httpx pytest-mock
+        pip install -r api/requirements.txt
+        pip install -r worker/requirements.txt
+
+    - name: Run Unit Tests
+      # We set PYTHONPATH so pytest can find the 'api' and 'worker' folders
+      env:
+        PYTHONPATH: .
+        # Use 'memory://' to prevent Celery from looking for a real Redis
+        CELERY_BROKER_URL: memory://
+        CELERY_RESULT_BACKEND: cache+memory://
+      run: |
+        # Run all tests in the tests/ folder
+        # -v: verbose, -s: show print statements
+        pytest tests/ -v
+
+    # --- IMAGE 1: THE API ---
+    - name: Build and Load API Image
+      run: |
+        docker build -t quantum-kube-api:test -f docker/api.Dockerfile .
+        minikube image load quantum-kube-api:test
+
+    # --- IMAGE 2: THE WORKER ---
+    - name: Build and Load Worker Image
+      run: |
+        docker build -t quantum-kube-worker:test -f docker/worker.Dockerfile .
+        minikube image load quantum-kube-worker:test
+
+    # --- INFRASTRUCTURE SETUP ---
+    - name: Deploy Orchestration Layer
+      env:
+        # Securely pull the secret from GitHub Secrets
+        IBM_SECRET: ${{ secrets.IBM_QUANTUM_TOKEN }}
+      run: |
+        # 1. Inject the Secret FIRST
+        kubectl create secret generic quantum-api-key --from-literal=IBM_TOKEN=$IBM_SECRET || true
+        
+        # 2. Deploy Redis (The Backbone)
+        kubectl apply -f argo-templates/redis-deploy.yaml
+        
+        # 3. Patch and Deploy the Worker (The Engine)
+        sed -i 's/imagePullPolicy: Never/imagePullPolicy: IfNotPresent/g' argo-templates/worker-deploy.yaml
+        kubectl apply -f argo-templates/worker-deploy.yaml
+        
+        # 4. Patch and Deploy the API (The Gateway)
+        sed -i 's/imagePullPolicy: Never/imagePullPolicy: IfNotPresent/g' argo-templates/api-deploy.yaml
+        kubectl apply -f argo-templates/api-deploy.yaml
+
+    # --- VERIFICATION ---
+    - name: Wait for Rollout
+      run: |
+        kubectl rollout status deployment/redis-deployment --timeout=90s
+        kubectl rollout status deployment/q-stream-worker --timeout=180s
+        kubectl rollout status deployment/q-stream-api --timeout=180s
+        
+    - name: Check API Failure
+      run: |
+        echo "--- POD STATUS ---"
+        kubectl get pods
+        
+        echo "--- DESCRIBE POD (To see if it's OOMKilled or ImagePullBackOff) ---"
+        kubectl describe pod -l app=quantum-api | head -n 30
+        
+        echo "--- ACTUAL LOGS (Force tail) ---"
+        # Using --tail=-1 ensures we get everything from the start
+        kubectl logs -l app=quantum-api --tail=-1
+        
+    - name: Performance Smoke Test
+      run : |
+        python tests/stress_test.py
+      env:
+        API_URL: http://localhost:8080/run-simulation
+
+    - name: Integration Test
+      env:
+        GRAFANA_ADMIN_PASSWORD: ${{secrets.GRAFANA_ADMIN_PASSWORD}}
+      run: |
+        docker compose up -d

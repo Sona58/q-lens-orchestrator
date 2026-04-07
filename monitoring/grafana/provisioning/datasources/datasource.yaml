@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # In Docker Compose, 'prometheus' is the service name.
+    # In K8s, this would be the Service DNS (e.g., prometheus-service.monitoring.svc)
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      # This allows for faster querying of large quantum result sets
+      incrementalQuerying: true

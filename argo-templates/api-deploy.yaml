@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: q-stream-api
+  labels:
+    app: quantum-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: quantum-api
+  template:
+    metadata:
+      labels:
+        app: quantum-api
+    spec:
+      containers:
+      - name: fastapi-gateway
+        image: quantum-kube-api:test  # Matches our CI tag
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: CELERY_BROKER_URL
+          value: "redis://redis-service:6379/0"
+        - name: CELERY_RESULT_BACKEND
+          value: "redis://redis-service:6379/0"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: q-stream-service
+spec:
+  type: NodePort # For local Minikube testing
+  selector:
+    app: quantum-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080

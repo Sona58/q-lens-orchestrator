@@ -1,0 +1,37 @@
+discovery.docker "linux_containers" {
+    host = "unix:///var/run/docker.sock"
+    refresh_interval = "5s"
+}
+
+// NEW: This ensures every discovered container has a 'job' label
+discovery.relabel "assign_job" {
+    targets = discovery.docker.linux_containers.targets
+    rule {
+        target_label = "job"
+        replacement  = "docker_logs"
+    }
+}
+
+loki.source.docker "api_logs" {
+    host       = "unix:///var/run/docker.sock"
+    // Use the relabeled targets from above
+    targets    = discovery.relabel.assign_job.output
+    forward_to = [loki.relabel.journal_rename.receiver]
+    refresh_interval = "5s"
+}
+
+loki.relabel "journal_rename" {
+    forward_to = [loki.write.local_loki.receiver]
+    rule {
+        source_labels = ["__meta_docker_container_name"]
+        target_label  = "container_name"
+    }
+}
+
+loki.write "local_loki" {
+    endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+        batch_wait = "500ms"
+        batch_size = "1KiB"
+    }
+}
