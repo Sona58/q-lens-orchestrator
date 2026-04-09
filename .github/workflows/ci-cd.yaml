@@ -59,19 +59,19 @@ jobs:
         # Inject the Secret
         kubectl create secret generic quantum-api-key --from-literal=IBM_TOKEN=$IBM_SECRET || true
 
-        kubectl apply -f argo-templates/redis-deploy.yaml
+        kubectl apply -f argo-templates/redis/redis-deploy.yaml
         # Wait for Redis so the API doesn't crash on start
         kubectl wait --for=condition=ready pod -l app=redis --timeout=60s
         
     - name: Deploy Application
       run: |
         # Update manifests to ensure they don't try to pull from external registries
-        sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' argo-templates/worker-deploy.yaml
-        sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' argo-templates/api-deploy.yaml
+        sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' argo-templates/applications/worker-deploy.yaml
+        sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' argo-templates/applications/api-deploy.yaml
         
         # Apply Manifests
-        kubectl apply -f argo-templates/worker-deploy.yaml
-        kubectl apply -f argo-templates/api-deploy.yaml
+        kubectl apply -f argo-templates/applications/worker-deploy.yaml
+        kubectl apply -f argo-templates/applications/api-deploy.yaml
         
         # Force a refresh if using 'latest' tags
         kubectl rollout restart deployment/q-lens-api
