@@ -20,7 +20,7 @@ LATENCY = Histogram("api_request_duration_seconds", "Time taken for API requests
 
 celery_app = Celery("quantum_tasks", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
-app = FastAPI(title="Q-Stream Gateway", root_path="/api/v1")
+app = FastAPI(title="Q-Lens Gateway", root_path="/api/v1")
 
 class JobResponse(BaseModel):
     job_id: str
@@ -28,7 +28,7 @@ class JobResponse(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"service": "Q-Stream API", "status": "Online"}
+    return {"service": "Q-Lens API", "status": "Online"}
 
 @app.get("/metrics")
 def metrics():

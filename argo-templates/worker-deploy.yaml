@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: q-stream-worker
+  name: q-lens-worker
   labels:
     app: quantum-worker
 spec:

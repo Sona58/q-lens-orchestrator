@@ -3,35 +3,45 @@ discovery.docker "linux_containers" {
     refresh_interval = "5s"
 }
 
-// NEW: This ensures every discovered container has a 'job' label
-discovery.relabel "assign_job" {
+discovery.relabel "api_filter" {
     targets = discovery.docker.linux_containers.targets
+
+    rule {
+        source_labels = ["__meta_docker_container_name"]
+        regex         = "^/?q-lens-orchestrator-api-1$"
+        action        = "keep"
+    }
+
     rule {
         target_label = "job"
         replacement  = "docker_logs"
     }
-}
 
-loki.source.docker "api_logs" {
-    host       = "unix:///var/run/docker.sock"
-    // Use the relabeled targets from above
-    targets    = discovery.relabel.assign_job.output
-    forward_to = [loki.relabel.journal_rename.receiver]
-    refresh_interval = "5s"
-}
-
-loki.relabel "journal_rename" {
-    forward_to = [loki.write.local_loki.receiver]
     rule {
         source_labels = ["__meta_docker_container_name"]
         target_label  = "container_name"
     }
 }
 
-loki.write "local_loki" {
+loki.source.docker "api_logs" {
+    host       = "unix:///var/run/docker.sock"
+    targets    = discovery.relabel.api_filter.output
+    forward_to = [loki.process.drop_noise.receiver]
+}
+
+loki.process "drop_noise" {
+    forward_to = [loki.write.loki_push.receiver]
+
+    stage.drop {
+        source = "" // Inspect the whole log line
+        expression = ".*GET /metrics.*"
+    }
+}
+
+loki.write "loki_push" {
     endpoint {
         url = "http://loki:3100/loki/api/v1/push"
         batch_wait = "500ms"
-        batch_size = "1KiB"
+        batch_size = "1KiB" 
     }
 }

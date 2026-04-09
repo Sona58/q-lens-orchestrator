@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: q-stream-api
+  name: q-lens-api
   labels:
     app: quantum-api
 spec:
@@ -38,7 +38,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: q-stream-service
+  name: q-lens-service
 spec:
   type: NodePort # For local Minikube testing
   selector:

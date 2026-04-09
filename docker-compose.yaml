@@ -66,6 +66,7 @@ services:
   grafana-agent:
     image: grafana/agent:latest
     container_name: grafana-agent
+    user: root
     volumes:
       - ./monitoring/grafana-agent/config.river:/etc/agent/config.river:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -79,7 +80,6 @@ services:
       - AGENT_MODE=flow
     ports:
       - "12345:12345"
-    user: root
     depends_on:
       - loki
     networks:

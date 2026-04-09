@@ -19,7 +19,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.14'
 
     - name: Install dependencies for testing
       run: |
@@ -40,65 +40,60 @@ jobs:
         # -v: verbose, -s: show print statements
         pytest tests/ -v
 
-    # --- IMAGE 1: THE API ---
-    - name: Build and Load API Image
+    # --- IMAGE BUILD ---
+    - name: Build and Load Image
       run: |
-        docker build -t quantum-kube-api:test -f docker/api.Dockerfile .
-        minikube image load quantum-kube-api:test
-
-    # --- IMAGE 2: THE WORKER ---
-    - name: Build and Load Worker Image
-      run: |
-        docker build -t quantum-kube-worker:test -f docker/worker.Dockerfile .
-        minikube image load quantum-kube-worker:test
+        # Point the shell to Minikube's internal Docker registry
+        eval $(minikube docker-env)
+        
+        # Build images directly inside Minikube
+        docker build -t quantum-kube-api:latest -f docker/api.Dockerfile .
+        docker build -t quantum-kube-worker:latest -f docker/worker.Dockerfile .
 
     # --- INFRASTRUCTURE SETUP ---
-    - name: Deploy Orchestration Layer
-      env:
-        # Securely pull the secret from GitHub Secrets
-        IBM_SECRET: ${{ secrets.IBM_QUANTUM_TOKEN }}
+    - name: Deploy Infrastructure
       run: |
-        # 1. Inject the Secret FIRST
-        kubectl create secret generic quantum-api-key --from-literal=IBM_TOKEN=$IBM_SECRET || true
-        
-        # 2. Deploy Redis (The Backbone)
         kubectl apply -f argo-templates/redis-deploy.yaml
+        # Wait for Redis so the API doesn't crash on start
+        kubectl wait --for=condition=ready pod -l app=redis --timeout=60s
         
-        # 3. Patch and Deploy the Worker (The Engine)
-        sed -i 's/imagePullPolicy: Never/imagePullPolicy: IfNotPresent/g' argo-templates/worker-deploy.yaml
+    - name: Deploy Application
+      run: |
+        # Update manifests to ensure they don't try to pull from external registries
+        sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' argo-templates/worker-deploy.yaml
+        sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' argo-templates/api-deploy.yaml
+        
+        # Apply Manifests
         kubectl apply -f argo-templates/worker-deploy.yaml
-        
-        # 4. Patch and Deploy the API (The Gateway)
-        sed -i 's/imagePullPolicy: Never/imagePullPolicy: IfNotPresent/g' argo-templates/api-deploy.yaml
         kubectl apply -f argo-templates/api-deploy.yaml
+        
+        # Force a refresh if using 'latest' tags
+        kubectl rollout restart deployment/q-lens-api
+        kubectl rollout restart deployment/q-lens-worker
 
     # --- VERIFICATION ---
-    - name: Wait for Rollout
+    - name: Verify Deployment Integrity
       run: |
+        echo "--- Waiting for Rollouts ---"
         kubectl rollout status deployment/redis-deployment --timeout=90s
-        kubectl rollout status deployment/q-stream-worker --timeout=180s
-        kubectl rollout status deployment/q-stream-api --timeout=180s
+        kubectl rollout status deployment/q-stream-worker --timeout=120s
+        kubectl rollout status deployment/q-stream-api --timeout=120s
         
-    - name: Check API Failure
-      run: |
-        echo "--- POD STATUS ---"
-        kubectl get pods
-        
-        echo "--- DESCRIBE POD (To see if it's OOMKilled or ImagePullBackOff) ---"
-        kubectl describe pod -l app=quantum-api | head -n 30
-        
-        echo "--- ACTUAL LOGS (Force tail) ---"
-        # Using --tail=-1 ensures we get everything from the start
-        kubectl logs -l app=quantum-api --tail=-1
+        echo "--- Checking for Runtime Errors ---"
+        # Check if pods are in 'Running' state. If not, fail the CI.
+        API_STATUS=$(kubectl get pods -l app=quantum-api -o jsonpath='{.items[0].status.phase}')
+        if [ "$API_STATUS" != "Running" ]; then
+          echo "ERROR: API Pod is not running. Status: $API_STATUS"
+          kubectl describe pod -l app=quantum-api
+          kubectl logs -l app=quantum-api --tail=100
+          exit 1
+        fi
         
     - name: Performance Smoke Test
       run : |
+        # Setup a tunnel so the runner can reach the Minikube service
+        kubectl port-forward service/q-stream-api-service 8000:8080 &
+        # Give the tunnel a moment to initialize
+        sleep 5
+        # Run the stress test against localhost:8000
         python tests/stress_test.py
-      env:
-        API_URL: http://localhost:8080/run-simulation
-
-    - name: Integration Test
-      env:
-        GRAFANA_ADMIN_PASSWORD: ${{secrets.GRAFANA_ADMIN_PASSWORD}}
-      run: |
-        docker compose up -d

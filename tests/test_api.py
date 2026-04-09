@@ -11,7 +11,7 @@ client = TestClient(app)
 def test_read_main():
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"service": "Q-Stream API", "status": "Online"}
+    assert response.json() == {"service": "Q-Lens API", "status": "Online"}
 
 @patch("api.main.celery_app.send_task")
 def test_submit_job(mock_send_task):
