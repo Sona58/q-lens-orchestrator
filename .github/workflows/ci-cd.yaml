@@ -118,7 +118,7 @@ jobs:
     - name: Performance Smoke Test
       run : |
         # Setup a tunnel so the runner can reach the Minikube service
-        kubectl port-forward service/q-lens-api-service 8000:8080 &
+        kubectl port-forward service/q-lens-service 8000:8080 &
         # Give the tunnel a moment to initialize
         sleep 5
         # Run the stress test against localhost:8000
