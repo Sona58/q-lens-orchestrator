@@ -47,8 +47,8 @@ jobs:
         eval $(minikube docker-env)
         
         # Build images directly inside Minikube
-        docker build -t quantum-kube-api:latest -f docker/api.Dockerfile .
-        docker build -t quantum-kube-worker:latest -f docker/worker.Dockerfile .
+        docker build -t q-lens-api:latest -f docker/api.Dockerfile .
+        docker build -t q-lens-worker:latest -f docker/worker.Dockerfile .
 
     # --- INFRASTRUCTURE SETUP ---
     - name: Deploy Infrastructure
@@ -75,9 +75,25 @@ jobs:
     - name: Verify Deployment Integrity
       run: |
         echo "--- Waiting for Rollouts ---"
+        # 1. Check Redis first (The foundation)
         kubectl rollout status deployment/redis-deployment --timeout=90s
-        kubectl rollout status deployment/q-lens-worker --timeout=120s
-        kubectl rollout status deployment/q-lens-api --timeout=120s
+        
+        # 2. Check Application Rollouts
+        kubectl rollout status deployment/q-lens-api --timeout=120s || (
+          echo "ERROR: API Rollout Timed Out"
+          kubectl get pods
+          kubectl describe deployment q-lens-api
+          kubectl logs -l app=q-lens-api --tail=50
+          exit 1
+        )
+        
+        kubectl rollout status deployment/q-lens-worker --timeout=120s || (
+          echo "ERROR: Worker Rollout Timed Out"
+          kubectl get pods
+          kubectl describe deployment q-lens-worker
+          kubectl logs -l app=q-lens-worker --tail=50
+          exit 1
+        )
         
         echo "--- Checking for Runtime Errors ---"
         # Check if pods are in 'Running' state. If not, fail the CI.
