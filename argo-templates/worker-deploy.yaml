@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: qiskit-worker
-        image: quantum-kube-worker:test  # Matches our CI tag
+        image: q-lens-worker:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: CELERY_BROKER_URL
