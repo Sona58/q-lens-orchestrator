@@ -76,8 +76,8 @@ jobs:
       run: |
         echo "--- Waiting for Rollouts ---"
         kubectl rollout status deployment/redis-deployment --timeout=90s
-        kubectl rollout status deployment/q-stream-worker --timeout=120s
-        kubectl rollout status deployment/q-stream-api --timeout=120s
+        kubectl rollout status deployment/q-lens-worker --timeout=120s
+        kubectl rollout status deployment/q-lens-api --timeout=120s
         
         echo "--- Checking for Runtime Errors ---"
         # Check if pods are in 'Running' state. If not, fail the CI.
@@ -92,7 +92,7 @@ jobs:
     - name: Performance Smoke Test
       run : |
         # Setup a tunnel so the runner can reach the Minikube service
-        kubectl port-forward service/q-stream-api-service 8000:8080 &
+        kubectl port-forward service/q-lens-api-service 8000:8080 &
         # Give the tunnel a moment to initialize
         sleep 5
         # Run the stress test against localhost:8000
