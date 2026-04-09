@@ -88,8 +88,8 @@ The project features a full-tier monitoring stack to ensure the health of quantu
 ## 🖼️ Screenshots
 
 ### Monitoring Overview
-![Monitoring Dashboard](./docs/screenshots/dashboard_combined.png)
-*A unified view showing simulation success rates (Prometheus) alongside real-time container logs (Loki).*
+![Monitoring Dashboard](./docs/screenshots/grafana_dashboard.png)
+*A view showing simulation success rates and latency (Prometheus).*
 
 ### Log Exploration
 ![Loki Explorer](./docs/screenshots/loki_logs.png)
