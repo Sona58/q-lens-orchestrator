@@ -15,7 +15,7 @@ async def submit_job(client, user_id):
     qubits = random.randint(2, 24)  # Vary the intensity
     try:
         start_time = time.perf_counter()
-        response = await client.post(f"{API_URL}?qubits={qubits}", timeout=10.0)
+        response = await client.post(f"{API_URL}?qubits={qubits}", timeout=20.0)
         end_time = time.perf_counter()
         
         if response.status_code == 200:

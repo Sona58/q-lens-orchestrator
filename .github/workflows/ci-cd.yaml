@@ -118,8 +118,16 @@ jobs:
     - name: Performance Smoke Test
       run : |
         # Setup a tunnel so the runner can reach the Minikube service
-        kubectl port-forward service/q-lens-service 8000:8080 &
+        kubectl port-forward service/q-lens-service 8000:80 &
+        
         # Give the tunnel a moment to initialize
-        sleep 5
+        sleep 10
+        
+        # Verify the tunnel is active before starting Python
+        if ! nc -z localhost 8000; then
+          echo "ERROR: Tunnel failed to initialize on localhost:8000"
+          exit 1
+        fi
+        
         # Run the stress test against localhost:8000
         python tests/stress_test.py
