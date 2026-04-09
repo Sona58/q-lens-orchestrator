@@ -82,16 +82,20 @@ jobs:
         kubectl rollout status deployment/q-lens-api --timeout=120s || (
           echo "ERROR: API Rollout Timed Out"
           kubectl get pods
+          echo "Description of API"
           kubectl describe deployment q-lens-api
-          kubectl logs -l app=q-lens-api --tail=50
+          echo "Logs of API"
+          kubectl logs -l app=quantum-api --tail=50
           exit 1
         )
         
         kubectl rollout status deployment/q-lens-worker --timeout=120s || (
           echo "ERROR: Worker Rollout Timed Out"
           kubectl get pods
+          echo "Description of Worker"
           kubectl describe deployment q-lens-worker
-          kubectl logs -l app=q-lens-worker --tail=50
+          echo "Logs of Worker"
+          kubectl logs -l app=quantum-worker --tail=50
           exit 1
         )
         
