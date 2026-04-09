@@ -52,7 +52,13 @@ jobs:
 
     # --- INFRASTRUCTURE SETUP ---
     - name: Deploy Infrastructure
+      env:
+        # Securely pull the secret from GitHub Secrets
+        IBM_SECRET: ${{secrets.IBM_QUANTUM_TOKEN}}
       run: |
+        # Inject the Secret
+        kubectl create secret generic quantum-api-key --from-literal=IBM_TOKEN=$IBM_SECRET || true
+
         kubectl apply -f argo-templates/redis-deploy.yaml
         # Wait for Redis so the API doesn't crash on start
         kubectl wait --for=condition=ready pod -l app=redis --timeout=60s
